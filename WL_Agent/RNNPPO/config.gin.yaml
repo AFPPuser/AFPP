@@ -1,0 +1,60 @@
+
+# ----------------
+# Chip parameters
+# ----------------
+init_chip.n_cells_per_wl = 9000  # not the real number of cells
+
+
+# ----------------
+# Agent parameters
+# ---------------
+
+AFPPAgent.n_pulses = 18
+AFPPAgent.targets = [0.275 , 0.370875, 0.466625]  # normalized
+AFPPAgent.model_cls = @AFPPNN  # @PulseOnlyNN
+AFPPAgent.env_handler = @CellsAboveTargetState # @AboveTargetLearningReadPoint
+AFPPAgent.learn_verify_level = True
+AFPPAgent.learn_reading_point = False
+AFPPAgent.delta_verify = 0.01
+
+
+
+
+AFPPNN.targets = [0.275 , 0.370875, 0.466625]  # normalized
+AFPPNN.pulse_layers_size = [64, 64, 64]
+AFPPNN.verify_layers_size = [64, 64, 64, 64]
+AFPPNN.critic_layer_size = [64, 64, 64]
+AFPPNN.non_linearity_module = @ReLU
+AFPPNN.hidden_size = 8
+AFPPNN.num_layers = 2
+AFPPNN.rnn_type = @RNN  # @LSTM
+
+#PulseOnlyNN.targets = [0.275 , 0.370875, 0.466625]  # normalized
+#PulseOnlyNN.pulse_layers_size = [64, 64, 64]
+#PulseOnlyNN.critic_layer_size = [64, 64, 64]
+#PulseOnlyNN.non_linearity_module = @ReLU
+#PulseOnlyNN.hidden_size = 8
+#PulseOnlyNN.num_layers = 2
+#PulseOnlyNN.rnn_type = @RNN  # @LSTM
+
+# ----------------
+# TrainManager parameters
+# ----------------
+#TrainManager.debug_mode = True
+
+PPOTrainManager.wl_idx = 0.27  # normalized
+PPOTrainManager.num_episodes = 1000000
+PPOTrainManager.debug_mode = False
+PPOTrainManager.batch_size = 6
+PPOTrainManager.max_episodes = 20
+PPOTrainManager.n_update_epochs = 1
+PPOTrainManager.lr = 5e-4
+PPOTrainManager.ckpt_freq = 100
+PPOTrainManager.init_agent_from_ckpt = None
+PPOTrainManager.reward_symmetry_factor = 0.1
+PPOTrainManager.entropy_alpha = 0.1
+PPOTrainManager.policy_clip = 0.3
+PPOTrainManager.n_batches_per_epoch = 6
+PPOTrainManager.decay_lr = 5000
+PPOTrainManager.decay_asymmetry = 5000
+PPOTrainManager.decay_entropy = 5000
