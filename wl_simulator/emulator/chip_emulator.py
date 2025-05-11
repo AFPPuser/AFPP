@@ -47,11 +47,11 @@ class Chip:
         return (self.wl.read() >= v_verify).cpu().numpy()
 
     def pulse(self,
-                v_verify_per_sub_level_mv,
-                vec_v_p_mv,
-                sub_levels_indicator_vec,
-                wl_idx,
-                block_idx=0):
+              v_verify_per_sub_level_mv,
+              vec_v_p_mv,
+              sub_levels_indicator_vec,
+              wl_idx,
+              block_idx=0):
         vec_v_p_mv = np.array([vec_v_p_mv]).reshape(-1)
         v_verify_per_sub_level_mv = np.array([v_verify_per_sub_level_mv]).reshape(-1)
         inhibit_vec = np.zeros_like(sub_levels_indicator_vec, dtype='bool')
@@ -68,13 +68,13 @@ class Chip:
         return self.sub_levels_indicator_new
 
     def pulse_and_read(self,
-                     v_verify_per_sub_level_mv,
-                     vec_v_p_mv,
-                     sub_levels_indicator_vec,
-                     block_idx=0,
-                     wl_idx=0,
-                     verify_levels=None,
-                     return_indicator_flag=True):
+                       v_verify_per_sub_level_mv,
+                       vec_v_p_mv,
+                       sub_levels_indicator_vec,
+                       block_idx=0,
+                       wl_idx=0,
+                       verify_levels=None,
+                       return_indicator_flag=True):
 
         sub_levels_indicator_new = self.pulse(v_verify_per_sub_level_mv=v_verify_per_sub_level_mv,
                                               vec_v_p_mv=vec_v_p_mv,

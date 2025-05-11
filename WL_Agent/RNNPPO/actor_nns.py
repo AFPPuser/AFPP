@@ -13,15 +13,16 @@ class AFPPNN(torch.nn.Module):
                  critic_layer_size,
                  input_common_size: int,
                  input_per_level_size: int,
-                 targets: np.ndarray,
+                 n_targets: int,
+                 targets_range: int,
                  output_common_size: int,
                  output_per_level_size: int,
                  rnn_type: torch.nn.RNN,
                  non_linearity_module=torch.nn.ReLU):
         super(AFPPNN, self).__init__()
 
-        self.n_targets = len(targets)
-        self.targets = (targets - (targets[-1] + targets[0]) / 2) / (targets[-1] - targets[0])
+        self.n_targets = n_targets
+        self.targets_range = targets_range
         self.common_obser = input_common_size
         self.obser_per_level = input_per_level_size + 1
         self.hidden_size = hidden_size
@@ -67,52 +68,57 @@ class AFPPNN(torch.nn.Module):
     def reset(self):
         self.hidden_state = None
 
-    def single_step(self, in_data_common, in_data_per_level):
+    def single_step(self, in_data_common, in_data_per_level, targets):
+        targets = (targets - (self.targets_range/2)) / self.targets_range
+
         with torch.no_grad():
-            targets = torch.tensor(self.targets).float().to(in_data_common.device).view(-1, 1)
+            targets = torch.tensor(targets).float().to(in_data_common.device).view(-1, 1)
 
             output, self.hidden_state = self.rnn(
                 torch.cat((in_data_common * torch.ones_like(targets), targets, in_data_per_level), dim=-1).float().view(
                     targets.shape[0], 1, -1),
                 self.hidden_state)
 
-            policy = self.verify_layers(output)
-            reading_policy = policy[..., 2:]
+            reading_policy = self.verify_layers(output)
+            reading_policy = reading_policy.view(*reading_policy.shape[:-1], 2, -1)
             pulse_policy = self.pulse_layers(output.flatten())
-            pulse_policy = torch.cat((pulse_policy, policy[..., :2].flatten()))
 
+            policy = torch.cat((pulse_policy,reading_policy[...,:1].flatten(),reading_policy[...,1:].flatten()))
             critic = self.critic(output.flatten())
 
-        return torch.cat((pulse_policy, reading_policy.flatten()), dim=-1), critic
+        return policy, critic
 
-    def forward(self, in_data_common, in_data_per_level, critic=True):
-
+    def forward(self, in_data_common, in_data_per_level, targets, critic=True):
+        targets = (targets - (self.targets_range/2)) / self.targets_range
         unit_vec = torch.ones((*in_data_common.shape[:-1], 1)).float().to(in_data_common.device)
-        batch_size, n_steps = in_data_common.shape[:-1]
+        batch_size,n_steps = in_data_common.shape[:-1]
         input_size = in_data_common.shape[-1] + in_data_per_level.shape[-1] + 1
 
-        input_rnn = torch.empty((self.n_targets * batch_size, n_steps, input_size)).to(in_data_common.device)
-        input_agents = torch.empty((batch_size, n_steps, self.hidden_size * self.n_targets)).to(in_data_common.device)
-        pulse_policy = torch.empty((batch_size, n_steps, 2 * (self.n_targets + 1))).to(in_data_common.device)
+        input_rnn = torch.empty((self.n_targets*batch_size,n_steps, input_size)).to(in_data_common.device)
+        input_agents = torch.empty((batch_size, n_steps, self.hidden_size*self.n_targets)).to(in_data_common.device)
+        pulse_policy = torch.empty((batch_size, n_steps, 2*(self.n_targets+1))).to(in_data_common.device)
 
-        for i in range(len(self.targets)):
-            input_rnn[i * batch_size:(i + 1) * batch_size] = torch.cat(
-                (in_data_common, self.targets[i] * unit_vec, in_data_per_level[:, :, i]), dim=-1).float()
+        for i in range(len(targets)):
+            input_rnn[i*batch_size:(i+1)*batch_size] = torch.cat((in_data_common, targets[i] * unit_vec, in_data_per_level[:, :, i]), dim=-1).float()
 
         output, _ = self.rnn(input_rnn, None)
-        policy = self.verify_layers(output).view(self.n_targets, batch_size, n_steps, -1)
-        output = output.view(self.n_targets, batch_size, n_steps, -1)
+        policy = self.verify_layers(output).view(self.n_targets,batch_size, n_steps,-1)
+        output = output.view(self.n_targets, batch_size,n_steps,-1)
 
-        for i in range(len(self.targets)):
-            pulse_policy[..., 2 * (i + 1):2 * (i + 2)] = policy[i, :, :, :2]
-            input_agents[..., self.hidden_size * i:self.hidden_size * (i + 1)] = output[i]
-
-        reading_policy = torch.tensor([], device=in_data_common.device)
-        if policy.shape[-1] > 2:
-            reading_policy = torch.empty((batch_size, n_steps, 2 * self.n_targets)).to(in_data_common.device)
-
-            for i in range(len(self.targets)):
+        reading_policy = torch.tensor([]).to(in_data_common.device)
+        if policy.shape[-1]>2:
+            reading_policy = torch.empty((batch_size, n_steps, 2*self.n_targets)).to(in_data_common.device)
+            for i in range(len(targets)):
                 reading_policy[..., 2 * i:2 * (i + 1)] = policy[i, :, :, 2:]
+                pulse_policy[..., 2 * (i + 1):2 * (i + 2)] = policy[i, :, :, :2]
+                input_agents[..., self.hidden_size * i:self.hidden_size * (i + 1)] = output[i]
+
+        else:
+
+            for i in range(len(targets)):
+                pulse_policy[..., 2 * (i + 1):2 * (i + 2)] = policy[i, :, :, :2]
+                input_agents[..., self.hidden_size * i:self.hidden_size * (i + 1)] = output[i]
+
 
         pulse_policy[..., :2] = self.pulse_layers(input_agents)
 
@@ -132,15 +138,16 @@ class PulseOnlyNN(torch.nn.Module):
                  critic_layer_size,
                  input_common_size: int,
                  input_per_level_size: int,
-                 targets: np.ndarray,
+                 n_targets: int,
+                 targets_range: int,
                  output_common_size: int,
                  output_per_level_size: int,
                  rnn_type: torch.nn.RNN,
                  non_linearity_module=torch.nn.ReLU):
         super(PulseOnlyNN, self).__init__()
 
-        self.n_targets = len(targets)
-        self.targets = (targets - (targets[-1] + targets[0]) / 2) / (targets[-1] - targets[0])
+        self.n_targets = n_targets
+        self.targets_range = targets_range
         self.common_obser = input_common_size
         self.obser_per_level = input_per_level_size + 1
         self.hidden_size = hidden_size
@@ -177,39 +184,41 @@ class PulseOnlyNN(torch.nn.Module):
     def reset(self):
         self.hidden_state = None
 
-    def single_step(self, in_data_common, in_data_per_level):
+    def single_step(self, in_data_common, in_data_per_level, targets):
+        targets = (targets - (self.targets_range/2)) / self.targets_range
+
         with torch.no_grad():
-            targets = torch.tensor(self.targets).float().to(in_data_common.device).view(-1, 1)
+            targets = torch.tensor(targets).float().to(in_data_common.device).view(-1, 1)
 
             output, self.hidden_state = self.rnn(
                 torch.cat((in_data_common * torch.ones_like(targets), targets, in_data_per_level), dim=-1).float().view(
                     targets.shape[0], 1, -1),
                 self.hidden_state)
 
-            pulse_policy = self.pulse_layers(output.flatten())
+            policy = self.pulse_layers(output.flatten())
 
             critic = self.critic(output.flatten())
 
-        return pulse_policy, critic
+        return policy, critic
 
-    def forward(self, in_data_common, in_data_per_level, critic=True):
-
+    def forward(self, in_data_common, in_data_per_level, targets, critic=True):
+        targets = (targets - (self.targets_range/2)) / self.targets_range
         unit_vec = torch.ones((*in_data_common.shape[:-1], 1)).float().to(in_data_common.device)
-        batch_size, n_steps = in_data_common.shape[:-1]
+        batch_size,n_steps = in_data_common.shape[:-1]
         input_size = in_data_common.shape[-1] + in_data_per_level.shape[-1] + 1
 
-        input_rnn = torch.empty((self.n_targets * batch_size, n_steps, input_size)).to(in_data_common.device)
-        input_agents = torch.empty((batch_size, n_steps, self.hidden_size * self.n_targets)).to(in_data_common.device)
+        input_rnn = torch.empty((self.n_targets*batch_size,n_steps, input_size)).to(in_data_common.device)
+        input_agents = torch.empty((batch_size, n_steps, self.hidden_size*self.n_targets)).to(in_data_common.device)
 
-        for i in range(len(self.targets)):
-            input_rnn[i * batch_size:(i + 1) * batch_size] = torch.cat((in_data_common, self.targets[i] * unit_vec,
-                                                                        in_data_per_level[:, :, i]), dim=-1).float()
+        for i in range(len(targets)):
+            input_rnn[i*batch_size:(i+1)*batch_size] = torch.cat((in_data_common, targets[i] * unit_vec, in_data_per_level[:, :, i]), dim=-1).float()
 
         output, _ = self.rnn(input_rnn, None)
-        output = output.view(self.n_targets, batch_size, n_steps, -1)
+        output = output.view(self.n_targets, batch_size,n_steps,-1)
 
-        for i in range(len(self.targets)):
-            input_agents[..., self.hidden_size * i:self.hidden_size * (i + 1)] = output[i]
+        for i in range(len(targets)):
+            input_agents[...,self.hidden_size*i:self.hidden_size*(i+1)] = output[i]
+
 
         pulse_policy = self.pulse_layers(input_agents)
 

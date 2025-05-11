@@ -25,7 +25,7 @@ class AFPPAgent(torch.nn.Module):
         self.targets = np.array(targets)
         self.n_targets = self.targets.size
         action_names = ['pulse']
-        self.env_handler = env_handler(targets=targets, n_pulses=n_pulses)
+        self.env_handler = env_handler()
         self.delta_verify = delta_verify
         self.learn_verify_level = learn_verify_level
         self.n_common_actions = len(action_names)
@@ -52,9 +52,11 @@ class AFPPAgent(torch.nn.Module):
         input_common_size += self.n_common_actions
         input_per_level_size += self.n_actions_per_level
 
+        targets_range = targets[-1] - targets[0]
         self.model = model_cls(input_common_size=input_common_size,
                                input_per_level_size=input_per_level_size,
-                               targets=np.array(targets),
+                               n_targets=self.n_targets,
+                               targets_range=targets_range,
                                output_common_size=self.n_common_actions * 2,
                                output_per_level_size=self.n_actions_per_level * 2
                                )
@@ -64,13 +66,13 @@ class AFPPAgent(torch.nn.Module):
         self.last_action_common = np.zeros(self.n_common_actions)
         self.last_action_per_level = np.zeros((self.n_targets, self.n_actions_per_level))
 
-    def get_policy(self, obs_common, obs_per_level):
-        out, values = self.model(obs_common, obs_per_level, critic=True)
+    def get_policy(self, obs_common, obs_per_level, targets):
+        out, values = self.model(obs_common, obs_per_level, targets=targets, critic=True)
         a = 1 + torch.nn.Softplus()(out[..., ::2])
         b = 1 + torch.nn.Softplus()(out[..., 1::2])
         return Beta(a, b), values
 
-    def act(self, chip, p_ind, verbose=False):
+    def act(self, chip, p_ind, targets, verbose=False):
         obs_common, obs_per_level = self.env_handler.get_obs(p_ind)
 
         obs_common = np.hstack((obs_common, self.last_action_common))
@@ -80,43 +82,49 @@ class AFPPAgent(torch.nn.Module):
         obs_per_level = torch.tensor(obs_per_level).to(self.device)
 
         output_dict = {}
-        raw_output, _ = self.model.single_step(obs_common, obs_per_level)
+        raw_output, _ = self.model.single_step(obs_common, obs_per_level, targets=targets)
         raw_output = raw_output.view(-1)
         a = 1 + torch.nn.Softplus()(raw_output[::2]).cpu().detach().numpy()
         b = 1 + torch.nn.Softplus()(raw_output[1::2]).cpu().detach().numpy()
         output_dict['raw'] = a / (a + b)
 
-        self.last_action_common = output_dict['raw'][:1]
         self.rescale_actions(actions_dict=output_dict)
-
         pulse = output_dict['value'][0]
+        self._update_last_action(output_dict=output_dict)
 
-        if self.learn_verify_level or self.learn_reading_point:
-            self.last_action_per_level = output_dict['raw'][1:].reshape(-1, self.n_actions_per_level, order='F')
+        v_verify_arr = targets - self.delta_verify
+        reading_point_arr = targets - self.delta_verify
 
         if self.learn_verify_level:
             v_verify_arr = np.array(output_dict['value'][1:self.n_targets+1])
-        else:
-            v_verify_arr = self.targets - self.delta_verify
 
         if self.learn_reading_point:
             reading_point_arr = np.array(output_dict['value'][self.n_targets + 1:])
-        else:
-            reading_point_arr = self.targets - self.delta_verify
 
         if verbose:
-            with np.printoptions(precision=4, suppress=True):
-                print(f'Targets: {self.targets}, Read voltages: {reading_point_arr},'
-                      f' Verify: {v_verify_arr}, Pulse: {pulse}')
+            with np.printoptions(precision=3, suppress=True):
+                print(f'Obs: {obs_per_level[:, 0].cpu().detach().numpy()},'
+                              f' Read voltages: {reading_point_arr},'
+                              f' Verify: {v_verify_arr}, Pulse: {pulse:.3f}')
 
-        self.env_handler.act(chip=chip, pulse=pulse, v_verify_arr=v_verify_arr, read_levels=reading_point_arr)
+        self.env_handler.act(chip=chip,
+                             pulse=pulse,
+                             v_verify_arr=v_verify_arr,
+                             read_levels=reading_point_arr)
+
         return pulse
+
+    def _update_last_action(self, output_dict):
+        self.last_action_common = output_dict['raw'][:1]
+        if self.learn_reading_point or self.learn_verify_level:
+            self.last_action_per_level = output_dict['raw'][1:].reshape(
+                -1, self.n_actions_per_level, order='F')
 
     def rescale_actions(self, actions_dict: dict):
         actions_dict['value'] = actions_dict['raw'] * (self.action_ranges[:, 1] - self.action_ranges[:, 0])
         actions_dict['value'] += self.action_ranges[:, 0]
 
-    def step(self, chip, p_ind):
+    def step(self, chip, p_ind, targets):
         obs_common, obs_per_level = self.env_handler.get_obs(p_ind)
 
         obs_common = np.hstack((obs_common, self.last_action_common))
@@ -125,39 +133,37 @@ class AFPPAgent(torch.nn.Module):
         obs_common = torch.tensor(obs_common).to(self.device)
         obs_per_level = torch.tensor(obs_per_level).to(self.device)
 
-        raw_output, critic_value = self.model.single_step(obs_common, obs_per_level)
+        raw_output, critic_value = self.model.single_step(obs_common, obs_per_level, targets=targets)
         output_dict = self._process_nn_output(raw_output=raw_output.view(-1))
         output_dict['critic_value'] = critic_value.cpu().detach().numpy().flatten()
         output_dict['obs_common'] = obs_common.cpu().detach().numpy().flatten()
         output_dict['obs_per_level'] = obs_per_level.cpu().detach().numpy().reshape(-1, obs_per_level.shape[-1])
         pulse = output_dict['value'][0]
 
-        if self.learn_verify_level or self.learn_reading_point:
-            self.last_action_per_level = output_dict['raw'][1:].reshape(-1, self.n_actions_per_level, order='F')
+        self._update_last_action(output_dict=output_dict)
+        v_verify_arr = targets - self.delta_verify
+        reading_point_arr = targets - self.delta_verify
 
         if self.learn_verify_level:
             v_verify_arr = np.array(output_dict['value'][1:self.n_targets+1])
-        else:
-            v_verify_arr = self.targets - self.delta_verify
 
         if self.learn_reading_point:
             reading_point_arr = np.array(output_dict['value'][self.n_targets + 1:])
-        else:
-            reading_point_arr = self.targets - self.delta_verify
 
         self.env_handler.act(chip=chip, pulse=pulse, v_verify_arr=v_verify_arr, read_levels=reading_point_arr)
 
-        self.last_action_common = output_dict['raw'][:1]
-
         return output_dict
 
-    def reset(self, chip, block_idx, wl_idx, sub_levels_indicator_vec):
+    def reset(self, chip, block_idx, wl_idx, sub_levels_indicator_vec, read_levels):
         self.model.reset()
         self.last_action_common[:] = 0
         self.last_action_per_level[:] = 0
 
-        self.env_handler.reset(chip=chip, block_idx=block_idx, wl_idx=wl_idx,
-                               sub_levels_indicator_vec=sub_levels_indicator_vec)
+        self.env_handler.reset(chip=chip,
+                               block_idx=block_idx,
+                               wl_idx=wl_idx,
+                               sub_levels_indicator_vec=sub_levels_indicator_vec,
+                               read_levels=read_levels)
 
     def _process_nn_output(self, raw_output):
 

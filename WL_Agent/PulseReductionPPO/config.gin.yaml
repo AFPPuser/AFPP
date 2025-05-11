@@ -10,20 +10,17 @@ init_chip.n_cells_per_wl = 9000
 # ---------------
 AFPPAgent.n_pulses = 12
 AFPPAgent.targets = [0.275 , 0.370875, 0.466625]  # normalized
-AFPPAgent.model_cls = @AFPPSNN
+AFPPAgent.model_cls = @AFPPRNN
 AFPPAgent.env_handler = @CellsAboveTargetState  #@AboveTargetLearningReadPoint
 AFPPAgent.delta_verify = 0.01
 
-
-AFPPSNN.targets = [0.275 , 0.370875, 0.466625]  # normalized
-AFPPSNN.pulse_layers_size = [64, 64, 64]
-AFPPSNN.verify_layers_size = [64, 64, 64, 64]
-AFPPSNN.critic_layer_size = [64, 64, 64]
-AFPPSNN.non_linearity_module = @ReLU
-AFPPSNN.hidden_size = 8
-AFPPSNN.num_layers = 2
-AFPPSNN.rnn_type = @RNN  # @LSTM
-
+AFPPRNN.pulse_layers_size = [64, 64, 64]
+AFPPRNN.verify_layers_size = [64, 64, 64, 64]
+AFPPRNN.critic_layer_size = [64, 64, 64]
+AFPPRNN.non_linearity_module = @ReLU
+AFPPRNN.hidden_size = 8
+AFPPRNN.num_layers = 2
+AFPPRNN.rnn_type = @RNN  # @LSTM
 
 
 # ----------------
@@ -38,7 +35,7 @@ PPOTrainManager.batch_size = 6
 PPOTrainManager.max_episodes = 20
 PPOTrainManager.n_update_epochs = 1
 PPOTrainManager.lr = 5e-4
-PPOTrainManager.ckpt_freq = 10
+PPOTrainManager.ckpt_freq = 100
 PPOTrainManager.init_agent_from_ckpt = None
 PPOTrainManager.reward_symmetry_factor = 0.1
 PPOTrainManager.entropy_alpha = 0.1

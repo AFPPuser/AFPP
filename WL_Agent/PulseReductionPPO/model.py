@@ -3,7 +3,7 @@ import gin
 import numpy as np
 import torch
 from torch.distributions import Beta, Bernoulli
-from actor_nns import AFPPSNN
+from actor_nns import AFPPRNN
 
 
 @gin.configurable
@@ -23,7 +23,7 @@ class AFPPAgent(torch.nn.Module):
         self.targets = np.array(targets)
         self.n_targets = self.targets.size
         action_names = ['pulse']
-        self.env_handler = env_handler(targets=targets, n_pulses=n_pulses)
+        self.env_handler = env_handler()
 
         self.delta_verify = delta_verify
         self.n_common_actions = len(action_names)
@@ -154,7 +154,8 @@ class AFPPAgent(torch.nn.Module):
         self.last_action_per_level[:] = 0
 
         self.env_handler.reset(chip=chip, block_idx=block_idx, wl_idx=wl_idx,
-                               sub_levels_indicator_vec=sub_levels_indicator_vec)
+                               sub_levels_indicator_vec=sub_levels_indicator_vec,
+                               read_levels=self.targets - self.delta_verify)
 
     def _process_nn_output(self, raw_output):
 

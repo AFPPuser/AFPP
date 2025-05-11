@@ -4,7 +4,7 @@ import gin
 
 
 @gin.configurable()
-class AFPPSNN(torch.nn.Module):
+class AFPPRNN(torch.nn.Module):
     def __init__(self,
                  hidden_size: int,
                  num_layers: int,
@@ -19,7 +19,7 @@ class AFPPSNN(torch.nn.Module):
                  rnn_type: torch.nn.RNN,
                  non_linearity_module=torch.nn.ReLU):
 
-        super(AFPPSNN, self).__init__()
+        super(AFPPRNN, self).__init__()
 
         self.n_targets = len(targets)
         self.targets = (targets - (targets[-1] + targets[0]) / 2) / (targets[-1] - targets[0])

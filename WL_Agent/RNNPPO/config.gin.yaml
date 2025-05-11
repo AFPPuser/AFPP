@@ -9,18 +9,19 @@ init_chip.n_cells_per_wl = 9000  # not the real number of cells
 # Agent parameters
 # ---------------
 
-AFPPAgent.n_pulses = 18
-AFPPAgent.targets = [0.275 , 0.370875, 0.466625]  # normalized
+AFPPAgent.n_pulses = 21
+AFPPAgent.targets = [0.24 , 0.44, 0.64]  # MLC normalized
+# AFPPAgent.targets = [0.239, 0.34 , 0.44 , 0.54 , 0.64, 0.74 ,0.85]  # TLC normalized
+# AFPPAgent.targets = [0.239, 0.288, 0.34, 0.391, 0.44, 0.49, 0.54, 0.59, 0.62, 0.62, 0.72, 0.795, 0.85, 0.90, 0.98]  # QLC normalized
+
 AFPPAgent.model_cls = @AFPPNN  # @PulseOnlyNN
-AFPPAgent.env_handler = @CellsAboveTargetState # @AboveTargetLearningReadPoint
+AFPPAgent.env_handler = @CellsAboveTargetState
 AFPPAgent.learn_verify_level = True
 AFPPAgent.learn_reading_point = False
 AFPPAgent.delta_verify = 0.01
 
 
 
-
-AFPPNN.targets = [0.275 , 0.370875, 0.466625]  # normalized
 AFPPNN.pulse_layers_size = [64, 64, 64]
 AFPPNN.verify_layers_size = [64, 64, 64, 64]
 AFPPNN.critic_layer_size = [64, 64, 64]
@@ -29,19 +30,20 @@ AFPPNN.hidden_size = 8
 AFPPNN.num_layers = 2
 AFPPNN.rnn_type = @RNN  # @LSTM
 
-#PulseOnlyNN.targets = [0.275 , 0.370875, 0.466625]  # normalized
-#PulseOnlyNN.pulse_layers_size = [64, 64, 64]
-#PulseOnlyNN.critic_layer_size = [64, 64, 64]
-#PulseOnlyNN.non_linearity_module = @ReLU
-#PulseOnlyNN.hidden_size = 8
-#PulseOnlyNN.num_layers = 2
-#PulseOnlyNN.rnn_type = @RNN  # @LSTM
+# PulseOnlyNN.pulse_layers_size = [64, 64, 64]
+# PulseOnlyNN.critic_layer_size = [64, 64, 64]
+# PulseOnlyNN.non_linearity_module = @ReLU
+# PulseOnlyNN.hidden_size = 8
+# PulseOnlyNN.num_layers = 2
+# PulseOnlyNN.rnn_type = @RNN  # @LSTM
 
 # ----------------
 # TrainManager parameters
 # ----------------
-#TrainManager.debug_mode = True
 
+PPOTrainManager.train_sub_steps = [1, 2, 3]
+PPOTrainManager.train_n_pulses = [7, 14, 21]
+PPOTrainManager.next_step_conditions = [0.01, 0.01] 
 PPOTrainManager.wl_idx = 0.27  # normalized
 PPOTrainManager.num_episodes = 1000000
 PPOTrainManager.debug_mode = False
