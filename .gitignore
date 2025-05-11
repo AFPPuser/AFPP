@@ -3,8 +3,5 @@
 .vscode/*
 __pycache__/
 /venv/
-wandb/*
 .venv/
 outputs/*
-
-

@@ -82,6 +82,9 @@ Config files and parameters
 | AFPPNN.rnn_type                             | The RNN type of RNN (LSTM / Vanilla RNN)                              |
 |                                                                                                                     |
 |                                                                                                                     |
+| PPOTrainManager.train_sub_steps             | The maximal level to program at each training step                    |
+| PPOTrainManager.train_n_pulses              | The number of programming pulses for each training step               |
+| PPOTrainManager.next_step_conditions        | The L2 condition required to move to the next training step           |
 | PPOTrainManager.wl_idx                      | The NORMALIZED WL index. Float in range (0, 1)                        |
 | PPOTrainManager.num_episodes                | The number of train episodes                                          |
 | PPOTrainManager.batch_size                  | The batch size                                                        |
