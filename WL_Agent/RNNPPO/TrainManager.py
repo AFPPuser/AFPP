@@ -441,7 +441,7 @@ class PPOTrainManager:
         else:
             self.curr_n_pulses = self.agent.n_pulses
 
-        self.train_n_steps = self.curr_n_pulse
+        self.train_n_steps = self.curr_n_pulses
 
     def _eval_agent(self, episode):
         print(f"--------- EVAL at episode {episode} ---------")

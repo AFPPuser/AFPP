@@ -80,10 +80,9 @@ class AFPPNN(torch.nn.Module):
                 self.hidden_state)
 
             reading_policy = self.verify_layers(output)
-            reading_policy = reading_policy.view(*reading_policy.shape[:-1], 2, -1)
             pulse_policy = self.pulse_layers(output.flatten())
 
-            policy = torch.cat((pulse_policy,reading_policy[...,:1].flatten(),reading_policy[...,1:].flatten()))
+            policy = torch.cat((pulse_policy,reading_policy[...,:2].flatten(),reading_policy[...,2:].flatten()))
             critic = self.critic(output.flatten())
 
         return policy, critic
