@@ -40,10 +40,12 @@ AFPPNN.rnn_type = @RNN  # @LSTM
 # ----------------
 # TrainManager parameters
 # ----------------
-
+PPOTrainManager.debug_mode = True
 PPOTrainManager.train_sub_steps = [1, 2, 3]
 PPOTrainManager.train_n_pulses = [7, 14, 21]
-PPOTrainManager.next_step_conditions = [0.01, 0.01] 
+PPOTrainManager.next_step_conditions = [0.01, 0.009]  # MLC normalized
+# PPOTrainManager.next_step_conditions = [0.01, 0.01, 0.0085, 0.0085, 0.0085, 0.0085]  # TLC normalized
+# PPOTrainManager.next_step_conditions = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01 , 0.0093, 0.0093, 0.0087 , 0.0087 , 0.008, 0.008, 0.008, 0.0075, 0.0075]  # QLC normalized
 PPOTrainManager.wl_idx = 0.27  # normalized
 PPOTrainManager.num_episodes = 1000000
 PPOTrainManager.debug_mode = False
@@ -51,7 +53,7 @@ PPOTrainManager.batch_size = 6
 PPOTrainManager.max_episodes = 20
 PPOTrainManager.n_update_epochs = 1
 PPOTrainManager.lr = 5e-4
-PPOTrainManager.ckpt_freq = 100
+PPOTrainManager.ckpt_freq = 200
 PPOTrainManager.init_agent_from_ckpt = None
 PPOTrainManager.reward_symmetry_factor = 0.1
 PPOTrainManager.entropy_alpha = 0.1

@@ -102,6 +102,11 @@ class PPOTrainManager:
             self.agent.eval()
             self.update_learning_params(episode=episode)
 
+            if episode % 100 == 0:
+                ret_val = self.episode_log['Chip 0 TRAIN return']
+                mean_l2 = np.mean(self.last_mean_l2s)
+                print(f'Episode {episode}, return = {ret_val}, mean_l2 = {mean_l2}')
+
             if episode % self.ckpt_freq == 0:
                 self._eval_agent(episode=episode)
                 if not self.debug_mode:
@@ -160,7 +165,6 @@ class PPOTrainManager:
             try:
                 episode_data, return_val, mean_error, std, dist_mean, dist_std, mean_l2 = self.single_chip_episode(
                     chip=self.chips[chip_idx], agent=agent)
-                print(f'Episode return = {return_val}')
                 return episode_data, return_val, mean_error, std, dist_mean, dist_std, mean_l2
             except Exception as e:
                 print(e)
